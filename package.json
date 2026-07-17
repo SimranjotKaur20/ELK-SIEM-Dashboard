@@ -1,0 +1,14 @@
+{
+  "name": "siem-elk-dashboard-simulator",
+  "version": "1.0.0",
+  "description": "Interactive Real-Time SIEM Dashboard & ELK Stack Simulator",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "author": "Antigravity Pair Programmer",
+  "license": "MIT"
+}

@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIEM Security Operations Center (SOC) Dashboard</title>
+  <!-- Google Fonts for Modern Cybersecurity HUD aesthetic -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Cyber Navigation HUD -->
+  <header class="hud-header">
+    <div class="hud-logo">
+      <div class="glow-dot pulse-green"></div>
+      <h1>SIEM OPERATIONS CENTER <span class="version-tag">ELK v8.12.0</span></h1>
+    </div>
+    <div class="hud-stats">
+      <div class="stat-indicator">
+        <span class="stat-label">SYSTEM STATUS:</span>
+        <span class="stat-value text-green" id="system-status">SECURE</span>
+      </div>
+      <div class="stat-indicator">
+        <span class="stat-label">INGESTION RATE:</span>
+        <span class="stat-value text-cyan" id="ingest-rate">0.0 EPS</span>
+      </div>
+      <div class="stat-indicator">
+        <span class="stat-label">ALERTS (24H):</span>
+        <span class="stat-value text-red" id="hud-alerts-count">0</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="main-container">
+    
+    <!-- LEFT SIDEBAR: Controls & Simulator -->
+    <aside class="control-panel">
+      
+      <!-- Monitored Agents Status -->
+      <section class="panel-section">
+        <h2>MONITORED AGENTS</h2>
+        <div class="agent-list">
+          <div class="agent-item">
+            <div class="agent-info">
+              <span class="agent-name">Win-Endpoint-01</span>
+              <span class="agent-sub">Winlogbeat Security</span>
+            </div>
+            <span class="agent-badge active-badge" id="agent-win">ONLINE</span>
+          </div>
+          <div class="agent-item">
+            <div class="agent-info">
+              <span class="agent-name">Linux-Web-Server</span>
+              <span class="agent-sub">Filebeat /var/log/auth</span>
+            </div>
+            <span class="agent-badge active-badge" id="agent-linux">ONLINE</span>
+          </div>
+          <div class="agent-item">
+            <div class="agent-info">
+              <span class="agent-name">Kali-Attacker</span>
+              <span class="agent-sub">Simulation Agent</span>
+            </div>
+            <span class="agent-badge warning-badge" id="agent-kali">ARMED</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Attack Simulation Trigger Panel -->
+      <section class="panel-section">
+        <h2>ATTACK SIMULATOR</h2>
+        <p class="section-desc">Generate raw security events to test detection filters & triggers.</p>
+        <div class="simulator-buttons">
+          <button class="sim-btn btn-danger" onclick="triggerSimulation('ssh_brute_force')">
+            <span class="btn-icon">⚡</span> SSH Brute Force (Kali)
+          </button>
+          <button class="sim-btn btn-danger" onclick="triggerSimulation('rdp_brute_force')">
+            <span class="btn-icon">⚡</span> RDP Brute Force (Windows)
+          </button>
+          <button class="sim-btn btn-warning" onclick="triggerSimulation('sudo_misuse')">
+            <span class="btn-icon">⚠️</span> Sudo Privilege Misuse
+          </button>
+          <button class="sim-btn btn-warning" onclick="triggerSimulation('port_scan')">
+            <span class="btn-icon">🔍</span> Port Scan (Nmap)
+          </button>
+          <button class="sim-btn btn-critical" onclick="triggerSimulation('mimikatz')">
+            <span class="btn-icon">💀</span> Credential Dumping (Mimikatz)
+          </button>
+          <button class="sim-btn btn-critical" onclick="triggerSimulation('data_exfil')">
+            <span class="btn-icon">📤</span> Data Exfiltration (5.2 GB)
+          </button>
+          <button class="sim-btn btn-success" onclick="triggerSimulation('normal_traffic')">
+            <span class="btn-icon">✓</span> Inject Normal Traffic
+          </button>
+          <button class="sim-btn btn-secondary" onclick="resetSimulatorData()">
+            <span class="btn-icon">⟲</span> Clear Logs & Reset Data
+          </button>
+        </div>
+      </section>
+
+      <!-- KQL Query Sandbox -->
+      <section class="panel-section">
+        <h2>KQL QUERY SANDBOX</h2>
+        <p class="section-desc">Query Elasticsearch log store using KQL syntax.</p>
+        <div class="kql-container">
+          <div class="kql-input-wrapper">
+            <span class="kql-prefix">KQL</span>
+            <input type="text" id="kql-search-input" placeholder="e.g. event.outcome: failure AND user.name: root" value="">
+          </div>
+          <div class="kql-actions">
+            <button class="kql-btn search-btn" onclick="executeKQLSearch()">Execute Search</button>
+            <button class="kql-btn clear-btn" onclick="clearKQLSearch()">Reset Filter</button>
+          </div>
+        </div>
+        <div class="kql-cheatsheet">
+          <span class="cheatsheet-title">Syntax Reference:</span>
+          <ul>
+            <li><code>event.outcome: failure</code></li>
+            <li><code>user.name: root</code></li>
+            <li><code>event.severity >= 4</code></li>
+            <li><code>event.action: ssh_login AND source.ip: 192.168.1.100</code></li>
+          </ul>
+        </div>
+      </section>
+
+    </aside>
+
+    <!-- RIGHT CONTENT AREA -->
+    <main class="content-area">
+      
+      <!-- Nav Tabs -->
+      <nav class="content-tabs">
+        <button class="tab-btn active" onclick="switchTab('dashboard')">SIEM Dashboard</button>
+        <button class="tab-btn" onclick="switchTab('log-stream')">Logstash Pipeline Stream</button>
+        <button class="tab-btn" onclick="switchTab('architecture')">Architecture & Log Flow</button>
+        <button class="tab-btn" onclick="switchTab('code-repository')">Config Repository Files</button>
+        <button class="tab-btn" onclick="switchTab('detection-rules')">Detection Report & Rules</button>
+      </nav>
+
+      <!-- Tab Content: SIEM Dashboard -->
+      <div id="tab-dashboard" class="tab-content active">
+        
+        <!-- Metric Cards Grid -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <span class="metric-label">TOTAL LOGS INGESTED</span>
+            <span class="metric-value text-cyan" id="metric-total-logs">0</span>
+            <span class="metric-sub text-muted">Elasticsearch Index Size</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">FAILED LOGIN EVENTS</span>
+            <span class="metric-value text-yellow" id="metric-failed-logins">0</span>
+            <span class="metric-sub text-muted" id="metric-failed-sub">0% failure rate</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">PRIVILEGE ESCALATION ATTEMPTS</span>
+            <span class="metric-value text-orange" id="metric-sudo-violations">0</span>
+            <span class="metric-sub text-muted">Sudo and Account Auditing</span>
+          </div>
+          <div class="metric-card alert-triggered-card" id="alert-card">
+            <span class="metric-label">SECURITY ALERTS TRIGGERED</span>
+            <span class="metric-value text-red" id="metric-alerts-triggered">0</span>
+            <span class="metric-sub text-muted">Threshold Watchers</span>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="charts-row">
+          
+          <!-- Map Visual -->
+          <div class="dashboard-panel panel-map">
+            <h3>SIEM GEOMAP: ATTACK SOURCE COORDINATES</h3>
+            <div class="map-container">
+              <!-- SVG World Map HUD -->
+              <svg id="world-map-svg" viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg">
+                <!-- Simple stylized vector shapes for continents -->
+                <rect width="1000" height="500" fill="#0c0e14" />
+                <g fill="#1f2637" stroke="#0f1422" stroke-width="1">
+                  <!-- North America -->
+                  <path d="M100 100 L250 80 L350 200 L200 300 L120 280 L100 180 Z" />
+                  <!-- South America -->
+                  <path d="M220 320 L270 330 L320 380 L300 480 L250 480 L210 370 Z" />
+                  <!-- Africa -->
+                  <path d="M460 220 L530 200 L610 260 L600 350 L520 400 L470 340 L440 260 Z" />
+                  <!-- Europe -->
+                  <path d="M440 80 L520 70 L550 150 L460 170 Z" />
+                  <!-- Asia -->
+                  <path d="M520 70 L800 60 L850 150 L880 280 L750 320 L650 300 L560 180 Z" />
+                  <!-- Australia -->
+                  <path d="M780 370 L870 380 L880 430 L800 450 Z" />
+                  <!-- Greenland -->
+                  <path d="M280 40 L380 30 L350 80 L290 80 Z" />
+                </g>
+                <!-- Target Node (Target Servers in US East) -->
+                <circle cx="200" cy="180" r="8" fill="#00f2fe" filter="drop-shadow(0px 0px 5px #00f2fe)" />
+                <text x="200" y="165" fill="#00f2fe" font-size="10" font-family="Outfit" text-anchor="middle">SIEM CLUSTER</text>
+                
+                <!-- Dynamic Attack Lines will be injected here -->
+                <g id="map-attacks-group"></g>
+                <g id="map-pins-group"></g>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Time Series Visual -->
+          <div class="dashboard-panel panel-time">
+            <h3>LOGIN SUCCESS VS. FAILURE OVER TIME</h3>
+            <div class="chart-container">
+              <canvas id="timeSeriesChart"></canvas>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Tables Row -->
+        <div class="tables-row">
+          
+          <!-- Top Targeted Accounts -->
+          <div class="dashboard-panel">
+            <h3>TOP 5 TARGETED USER ACCOUNTS</h3>
+            <table class="hud-table">
+              <thead>
+                <tr>
+                  <th>User Account</th>
+                  <th>Failed Logins</th>
+                  <th>Successful Logins</th>
+                  <th>Risk Level</th>
+                </tr>
+              </thead>
+              <tbody id="table-targeted-users">
+                <tr><td colspan="4" class="text-center text-muted">No login data processed yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Privilege Escalation Events -->
+          <div class="dashboard-panel">
+            <h3>SUDO MISUSE & CRITICAL EVENTS LOG</h3>
+            <table class="hud-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Host</th>
+                  <th>User</th>
+                  <th>Command / Activity</th>
+                  <th>Severity</th>
+                </tr>
+              </thead>
+              <tbody id="table-critical-events">
+                <tr><td colspan="5" class="text-center text-muted">No escalation events detected.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+
+        <!-- Real-Time Alerts HUD -->
+        <div class="dashboard-panel alerts-panel">
+          <div class="panel-header-action">
+            <h3>ACTIVE REAL-TIME SECURITY ALERTS (ELASTIC WATCHER)</h3>
+            <button class="clear-alerts-btn" onclick="clearSecurityAlerts()">Mute Alerts</button>
+          </div>
+          <div class="alerts-feed" id="security-alerts-feed">
+            <div class="no-alerts-msg">
+              <span class="shield-icon">🛡️</span>
+              <p>NO ACTIVE ALERTS. MONITORED SYSTEMS REPORT SECURE ENVIRONMENT.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Tab Content: Log Stream -->
+      <div id="tab-log-stream" class="tab-content">
+        <div class="log-stream-header">
+          <h3>LOGSTASH PIPELINE INGESTION</h3>
+          <p>Real-time view of unstructured log lines received on port 5044 vs. normalized Elastic Common Schema (ECS) fields processed by Logstash filter configurations.</p>
+        </div>
+        <div class="dual-terminal-container">
+          
+          <!-- Left Terminal: Input Stream -->
+          <div class="terminal-card">
+            <div class="terminal-header">
+              <span class="term-dot dot-red"></span>
+              <span class="term-dot dot-yellow"></span>
+              <span class="term-dot dot-green"></span>
+              <span class="terminal-title">AGENT INPUT STREAM (RAW LOGS)</span>
+            </div>
+            <div class="terminal-body" id="raw-log-terminal">
+              <div class="terminal-line text-muted">// Waiting for log stream ingestion...</div>
+            </div>
+          </div>
+
+          <!-- Right Terminal: Output Stream -->
+          <div class="terminal-card">
+            <div class="terminal-header">
+              <span class="term-dot dot-red"></span>
+              <span class="term-dot dot-yellow"></span>
+              <span class="term-dot dot-green"></span>
+              <span class="terminal-title">LOGSTASH OUTPUT: ECS NORMALIZED (JSON)</span>
+            </div>
+            <div class="terminal-body" id="ecs-json-terminal">
+              <div class="terminal-line text-muted">// Waiting for pipeline filter parsing...</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Tab Content: Architecture -->
+      <div id="tab-architecture" class="tab-content">
+        <div class="dashboard-panel">
+          <h3>SIEM INGESTION PIPELINE FLOW</h3>
+          <div class="architecture-layout">
+            
+            <div class="arch-flow-visualization">
+              
+              <!-- Agents Node -->
+              <div class="arch-node" id="node-agents">
+                <div class="node-icon">🖥️</div>
+                <div class="node-title">SHIPPERS / AGENTS</div>
+                <div class="node-details">Winlogbeat & Filebeat</div>
+                <div class="flow-pulse-indicator"></div>
+              </div>
+
+              <!-- Flow Arrow 1 -->
+              <div class="arch-connector">
+                <div class="connector-line"></div>
+                <div class="connector-arrow">▶</div>
+                <div class="connector-label">Port 5044</div>
+              </div>
+
+              <!-- Logstash Node -->
+              <div class="arch-node" id="node-logstash">
+                <div class="node-icon">⚙️</div>
+                <div class="node-title">LOGSTASH PIPELINE</div>
+                <div class="node-details">Grok Filter & GeoIP</div>
+                <div class="flow-pulse-indicator"></div>
+              </div>
+
+              <!-- Flow Arrow 2 -->
+              <div class="arch-connector">
+                <div class="connector-line"></div>
+                <div class="connector-arrow">▶</div>
+                <div class="connector-label">Port 9200</div>
+              </div>
+
+              <!-- Elasticsearch Node -->
+              <div class="arch-node" id="node-elasticsearch">
+                <div class="node-icon">🗄️</div>
+                <div class="node-title">ELASTICSEARCH</div>
+                <div class="node-details">Storage & Search Engine</div>
+                <div class="flow-pulse-indicator"></div>
+              </div>
+
+              <!-- Flow Arrow 3 -->
+              <div class="arch-connector">
+                <div class="connector-line"></div>
+                <div class="connector-arrow">▶</div>
+                <div class="connector-label">KQL Search</div>
+              </div>
+
+              <!-- Kibana Node -->
+              <div class="arch-node" id="node-kibana">
+                <div class="node-icon">📊</div>
+                <div class="node-title">KIBANA DASHBOARD</div>
+                <div class="node-details">Visualization SOC UI</div>
+                <div class="flow-pulse-indicator"></div>
+              </div>
+
+            </div>
+
+            <div class="arch-description-text">
+              <h4>Understanding the Log Pipeline:</h4>
+              <ol>
+                <li><strong>Endpoint Monitoring</strong>: Log Shippers (Winlogbeat/Filebeat) sit on target servers, capturing raw audit and logon logs.</li>
+                <li><strong>Ingestion & Parsing</strong>: Shippers forward events to Logstash on Port 5044. Logstash dissects unstructured fields using regular expression Grok filters, normalizes variables to Elastic Common Schema (ECS), and appends geographical metadata to public IPs.</li>
+                <li><strong>Storage & Alerting</strong>: Logstash feeds parsed events to Elasticsearch. In Elasticsearch, Watcher rules continuously check incoming entries for anomalies (e.g. brute force triggers) and create notifications.</li>
+                <li><strong>Analytics Visualization</strong>: Kibana acts as a graphical facade to Elasticsearch data, performing queries and building operations control dashboard views.</li>
+              </ol>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Code Repository -->
+      <div id="tab-code-repository" class="tab-content">
+        <div class="repo-explorer">
+          <div class="repo-sidebar">
+            <h4>FILES LIST</h4>
+            <div class="repo-file-item active" onclick="showRepoCode('docker-compose')">docker-compose.yml</div>
+            <div class="repo-file-item" onclick="showRepoCode('logstash-conf')">logstash.conf</div>
+            <div class="repo-file-item" onclick="showRepoCode('dashboard-ndjson')">dashboard.ndjson</div>
+            <div class="repo-file-item" onclick="showRepoCode('watcher-json')">watcher-brute-force.json</div>
+          </div>
+          <div class="repo-viewer">
+            <div class="repo-viewer-header">
+              <span class="active-file-title" id="repo-file-title">docker-compose.yml</span>
+              <button class="copy-btn" onclick="copyRepoCode()">Copy Code</button>
+            </div>
+            <pre class="repo-code-body"><code id="repo-code-content">Loading file content...</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Detection Rules & Reports -->
+      <div id="tab-detection-rules" class="tab-content">
+        <div class="dashboard-panel markdown-body">
+          <div class="markdown-view" id="detection-report-markdown-content">
+            Loading Detection Report documentation...
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Alert Popup Banner (Pops up in corner) -->
+  <div class="alert-banner-container" id="alert-banner-wrapper"></div>
+
+  <!-- Script Imports (Dynamic HUD Operations) -->
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{
+  "trigger": {
+    "schedule": {
+      "interval": "1m"
+    }
+  },
+  "input": {
+    "search": {
+      "request": {
+        "indices": [
+          "siem-logs-*"
+        ],
+        "body": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "now-1m"
+                    }
+                  }
+                },
+                {
+                  "term": {
+                    "event.outcome": "failure"
+                  }
+                },
+                {
+                  "terms": {
+                    "event.action": [
+                      "ssh_login",
+                      "win_login"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "aggs": {
+            "by_ip": {
+              "terms": {
+                "field": "source.ip",
+                "size": 10
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {
+    "script": {
+      "source": "ctx.payload.aggregations.by_ip.buckets.stream().anyMatch(b -> b.doc_count >= 5)"
+    }
+  },
+  "actions": {
+    "index_alert": {
+      "index": {
+        "index": "siem-alerts",
+        "doc_type": "_doc"
+      }
+    },
+    "notify_slack": {
+      "webhook": {
+        "method": "POST",
+        "host": "hooks.slack.com",
+        "port": 443,
+        "path": "/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+        "scheme": "https",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"text\": \"[ALERT] Brute Force Login Attempt Detected! Source IP: {{#ctx.payload.aggregations.by_ip.buckets}}{{key}} (Failed Attempts: {{doc_count}}){{/ctx.payload.aggregations.by_ip.buckets}}\"}"
+      }
+    }
+  }
+}
